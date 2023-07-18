@@ -19,10 +19,11 @@ def err_val_omega(err, omega0, gamma0, N, d, c_light=3E-1):
     # 'err' = the maximal error percentage between transmons,
     # 'omega0' = the mean frequency of a qubit,
     # 'N' = number of qubits
-    omega_val = [np.random.uniform((omega0 * (1 - err)), (omega0 * (1 + err))) for _ in range(N)]  # list of freq     with random error
-    #phi_val = [np.round(omega * d / c_light / (2 * np.pi), 5) for omega in omega_val]  # ## GUY and SASHA : keep     the phi the same for all the qubits
+    omega_val = [np.random.uniform((omega0 * (1 - err)), (omega0 * (1 + err))) for _ in
+                 range(N)]  # list of freq     with random error
+    # phi_val = [np.round(omega * d / c_light / (2 * np.pi), 5) for omega in omega_val]  # ## GUY and SASHA : keep     the phi the same for all the qubits
     gamma_val = [gamma0 for _ in range(N)]  # fixed gamma
-    return omega_val,gamma_val
+    return omega_val, gamma_val
 
 
 def err_val_gamma(err, omega0, gamma0, N, d, c_light=3E-1):
@@ -31,8 +32,9 @@ def err_val_gamma(err, omega0, gamma0, N, d, c_light=3E-1):
     # 'omega0' = the mean frequency of a qubit,
     # 'N' = number of qubits
     omega_val = [omega0 for _ in range(N)]  # fixed omega
-    gamma_val = [np.random.uniform((gamma0 * (1 - err)), (gamma0 * (1 + err))) for _ in range(N)]  # list of freq with random error
-    #phi_val = [(np.round(omega0) * d / c_light / (2 * np.pi), 5) for _ in range(N)]  # fixed phi
+    gamma_val = [np.random.uniform((gamma0 * (1 - err)), (gamma0 * (1 + err))) for _ in
+                 range(N)]  # list of freq with random error
+    # phi_val = [(np.round(omega0) * d / c_light / (2 * np.pi), 5) for _ in range(N)]  # fixed phi
 
     return omega_val, gamma_val
 
@@ -111,8 +113,9 @@ def construct_full_H(N, omega0, d0, gamma0, phi0, r=0, dim=2, alpha=0):
     for m in range(N):
         for n in range(N):
             ## GUY and SASHA : keep the phi the same for all the qubits
-            gamma = np.sqrt(gamma0[m]*gamma0[n]) ## we normalize the gamma do it's index symmetrical according to the two qubit gammas
-            #phi0 = np.round(omega0[m] * d0 / c_light / (2 * np.pi), 5)  # the phi is determined by the photon freq
+            gamma = np.sqrt(gamma0[m] * gamma0[
+                n])  ## we normalize the gamma do it's index symmetrical according to the two qubit gammas
+            # phi0 = np.round(omega0[m] * d0 / c_light / (2 * np.pi), 5)  # the phi is determined by the photon freq
             H = [qeye(dim)] * N
             H[m] = H[m] * create(dim)
             H[n] = H[n] * destroy(dim)
@@ -122,7 +125,7 @@ def construct_full_H(N, omega0, d0, gamma0, phi0, r=0, dim=2, alpha=0):
         H = [qeye(dim)] * N
         # YULI: is true?
         H[n] = H[n] * (omega0[n] / (2 * np.pi) * create(dim) * destroy(dim) + (
-                    create(dim) * create(dim) * destroy(dim) * destroy(dim)) * alpha / 2)  # *alpha/2
+                create(dim) * create(dim) * destroy(dim) * destroy(dim)) * alpha / 2)  # *alpha/2
         H1 = H1 + tensor(H)
 
     return H1
@@ -217,7 +220,8 @@ def exc_f_plus(t, args):
     Delta0 = args['Delta0']
 
     j = complex(0 + 1j)
-    return E*np.exp(j*(eps0+Delta0/2)*t) + E*np.exp(j*(eps0-Delta0/2)*t)
+    return E * np.exp(j * (eps0 + Delta0 / 2) * t) + E * np.exp(j * (eps0 - Delta0 / 2) * t)
+
 
 def exc_f_minus(t, args):
     # Construct the function describing transmon driving/excitation (exponents and/or cosine).
@@ -241,7 +245,8 @@ def exc_f(t, args):
     j = complex(0 + 1j)
     return E * np.exp(-j * (eps0) * t) * np.cos(Delta0 * t)
 
-### note: this driving assumes that the mirrors are distance d from qubits - this does not match current chip design
+
+# note: this driving assumes that the mirrors are distance d from qubits - this does not match current chip design
 
 def construct_wg_driving_operator_plus(N, Phi, r, dim=2):
     # function constructing operator for the de-excitation of two-excitation states through the waveguide
@@ -276,4 +281,43 @@ def construct_wg_driving_operator_minus(N, Phi, r, dim=2):
         H_wg_exc = H_wg_exc + tensor(wgexc_minus)
     return H_wg_exc
 
-## we will write the
+#######################################################################################################
+# in these next functions, we change the zm in order for it to consider driving from the mirror instead
+# of from the qubit
+#####do we need to change the green function as well???##############################################
+# the only thing that changes is z0 - but if all qubits shift, does it matter?
+#####################################################################################################
+
+def construct_wg_driving_operator_L_plus(N, k, r, L, d, dim=2):
+    # function constructing operator for the de-excitation of two-excitation states through the waveguide
+    # input params: 'N' = number of qubits in model,
+    # 'K' = the wave number, *not* depednent on d! (phi = k*d)
+    # 'r' = mirror/cavity reflection coefficient,
+    # 'dim' = number of transmon level considered in the sim
+    # 'L' = length of waveguide
+    d_r = ( L - (N-1) * d ) / 2 #distance between mirror to first\last qubit
+    H_wg_exc = tensor([Qobj(0)])  # initialize an empty tensor.
+    j = complex(0 + 1j)
+    for m in range(N):
+        wgexc_plus = [qeye(dim)] * N
+        # distance from mirror to first qubit + distance of qubit, normalized to the middle ##is correct???
+        zm = (d_r + (m + 1) * d) - L/2
+        wgexc_plus[m] = (np.exp(j * k * zm) + r * np.exp(j * k * L) * np.exp(-j * k * zm)) * destroy(dim)
+        H_wg_exc = H_wg_exc + tensor(wgexc_plus)
+    return H_wg_exc
+
+
+def construct_wg_driving_operator_L_minus(N, k, r, L, d, dim=2):
+    # function constructing operator for the de-excitation of two-excitation states through the waveguide
+    # input params: 'N' = number of qubits in model, 'Phi' = phase gained between two neighboring qubits,
+    # 'r' = mirror/cavity reflection coefficient,
+    # 'dim' = number of transmon level considered in the sim
+    d_r = (L - (N - 1) * d) / 2
+    H_wg_exc = tensor([Qobj(0)])  # initialize an empty tensor.
+    j = complex(0 + 1j)
+    for m in range(N):
+        wgexc_minus = [qeye(dim)] * N
+        zm = (d_r + (m + 1) * d)- L/2
+        wgexc_minus[m] = (np.exp(-j * k * zm) + r * np.exp(j * k * L) * np.exp(j * k * zm)) * create(dim)
+        H_wg_exc = H_wg_exc + tensor(wgexc_minus)
+    return H_wg_exc
